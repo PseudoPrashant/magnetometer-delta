@@ -31,6 +31,7 @@ from config import (
     OE_D_CUTOFF,
     OE_MIN_CUTOFF,
     RESYNC_GAP,
+    SPIKE_MAX_DELTA_B,
     SPIKE_MEDIAN_TAPS,
     W_REF_HIGH,
     W_REF_LOW,
@@ -127,3 +128,94 @@ class RotationPipeline:
         d_theta = np.cross(self._m_prev, m_unit)
         self._m_prev = m_unit.copy()
         return d_theta, dt
+
+
+class RotationPipelineV4:
+    """Stages 1-6 (v4): Whole-vector glitch gate + exact arc-angle kinematics.
+
+    Improvements over RotationPipeline:
+      1. Whole-Vector Gate: checks ||B_t - B_{t-1}|| against SPIKE_MAX_DELTA_B,
+         preserving 100% synchronous (X,Y,Z) triplets with zero axis skew and
+         eliminating the 10ms median buffer delay.
+      2. Synchronous One Euro Filter: applied directly to synchronous 3D vectors.
+      3. Exact Arc-Angle Delta: computes true angular geodesic distance
+         theta = arcsin(||m_prev x m_now||) rather than small-angle chord,
+         eliminating high-speed deficit during fast flicks (>50 rad/s).
+    """
+
+    def __init__(self) -> None:
+        self._oe_filters = [
+            OneEuroFilter(OE_MIN_CUTOFF, OE_BETA, OE_D_CUTOFF) for _ in range(3)
+        ]
+        self._b_raw_prev: np.ndarray | None = None
+        self._b_filtered: np.ndarray | None = None
+        self._last_t: float | None = None
+        self._m_prev: np.ndarray | None = None
+
+    def reset(self) -> None:
+        """Clear every pipeline state so tracking restarts cleanly."""
+        for f in self._oe_filters:
+            f.reset()
+        self._b_raw_prev = None
+        self._b_filtered = None
+        self._last_t = None
+        self._m_prev = None
+
+    def feed(self, b_raw_mg: np.ndarray) -> tuple[np.ndarray, float] | None:
+        """Process one raw field sample; returns (d_theta, dt) or None."""
+        # ---- Stage 1: Whole-Vector Glitch Gate ----
+        # Check Euclidean step distance against max physical limit.
+        if self._b_raw_prev is not None:
+            delta_mag = float(np.linalg.norm(b_raw_mg - self._b_raw_prev))
+            if delta_mag > SPIKE_MAX_DELTA_B:
+                # Glitch detected: drop corrupted frame, preserve valid baseline
+                return None
+        self._b_raw_prev = b_raw_mg.copy()
+
+        now = time.perf_counter()
+        if self._b_filtered is None or self._last_t is None:
+            # First sample: seed filters with nominal 100 Hz interval
+            self._b_filtered = np.array(
+                [f.filter(b_raw_mg[k], DT_SEED) for k, f in enumerate(self._oe_filters)]
+            )
+            self._last_t = now
+            self._m_prev = None
+            return None
+
+        raw_dt = now - self._last_t
+        self._last_t = now
+        resync = raw_dt > RESYNC_GAP
+        dt = min(max(raw_dt, DT_MIN), DT_MAX)
+
+        # ---- Stage 2: Synchronous Adaptive Smoothing (One Euro on raw B) ----
+        self._b_filtered = np.array(
+            [f.filter(b_raw_mg[k], dt) for k, f in enumerate(self._oe_filters)]
+        )
+
+        # ---- Stages 3+4: Baseline Correction & Geometry Unwarping ----
+        m = INV_A @ (self._b_filtered - B_OFFSET)
+
+        # ---- Stage 5: Normalization ----
+        norm = float(np.linalg.norm(m))
+        if norm < NORM_EPS:
+            return None
+        m_unit = m / norm
+
+        if self._m_prev is None or resync:
+            self._m_prev = m_unit.copy()
+            return None
+
+        # ---- Stage 6: Exact Arc-Angle Geodesic Derivative ----
+        u_cross = np.cross(self._m_prev, m_unit)
+        sin_theta = float(np.linalg.norm(u_cross))
+        if sin_theta < 1e-9:
+            d_theta = np.zeros(3)
+        else:
+            # Exact angle on sphere geodesic arc
+            clamped_sin = min(max(sin_theta, -1.0), 1.0)
+            theta = float(np.arcsin(clamped_sin))
+            d_theta = theta * (u_cross / sin_theta)
+
+        self._m_prev = m_unit.copy()
+        return d_theta, dt
+

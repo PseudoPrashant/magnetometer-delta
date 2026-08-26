@@ -48,7 +48,8 @@ CALIBRATION_SECONDS: Final[int] = 120  # duration of the roll-and-collect phase
 # FILTERING
 # ==========================================
 EMA_ALPHA: Final[float] = 0.70         # tracker_v1 plain EMA smoothing (0..1)
-SPIKE_MEDIAN_TAPS: Final[int] = 3      # v2+: sliding median window size (odd)
+SPIKE_MEDIAN_TAPS: Final[int] = 3      # v2/v3: sliding median window size (odd)
+SPIKE_MAX_DELTA_B: Final[float] = 8000.0  # v4: max permissible raw delta (mG/sample) for vector gate
 OE_MIN_CUTOFF: Final[float] = 1.2      # Hz - lower = calmer at rest but laggier
 OE_BETA: Final[float] = 0.015          # speed coefficient - raise if fast rolls lag
 OE_D_CUTOFF: Final[float] = 1.0        # Hz - cutoff of the internal speed estimator

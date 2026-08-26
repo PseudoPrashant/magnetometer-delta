@@ -25,7 +25,8 @@ completeness. All values below are the current defaults.
 | Constant | Default | Used by | Tuning guidance |
 |---|---|---|---|
 | `EMA_ALPHA` | `0.70` | v1 only | Higher = more responsive, noisier. Lower = smoother, laggier |
-| `SPIKE_MEDIAN_TAPS` | `3` | pipeline stage 1 | Keep odd. Larger windows tolerate longer bursts but add latency. 3 is effectively lag-free |
+| `SPIKE_MEDIAN_TAPS` | `3` | v2/v3 stage 1 | Keep odd. Larger windows tolerate longer bursts but add latency. 3 is standard |
+| `SPIKE_MAX_DELTA_B` | `8000.0` mG | v4 stage 1 | Whole-vector outlier threshold. Rejects field delta steps exceeding physical limits |
 | `OE_MIN_CUTOFF` | `1.2` Hz | One Euro base cutoff | Lower = calmer at rest, laggier overall. First knob to touch if rest jitter bothers you |
 | `OE_BETA` | `0.015` | One Euro speed coefficient | Raise if fast rolls feel muted/laggy. Too high reintroduces jitter during motion |
 | `OE_D_CUTOFF` | `1.0` Hz | One Euro internal speed LPF | Leave alone unless tuning feels binary; smooths how fast the adaptive cutoff itself moves |

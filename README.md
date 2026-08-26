@@ -27,11 +27,12 @@ magnetometer-delta/
 │   └── calibrate_offset.py        # hard-iron offset calibration (sphere fit)
 ├── core/
 │   ├── filters.py                 # LowPassFilter, OneEuroFilter, EMA
-│   └── pipeline.py                # RotationPipeline (stages 1-6) + ballistic_gain
+│   └── pipeline.py                # RotationPipeline, RotationPipelineV4, ballistic_gain
 ├── trackers/
 │   ├── tracker_v1.py              # baseline: EMA + fixed gain + deadzone
-│   ├── tracker_v2.py              # production: full pipeline + ballistics
-│   └── tracker_v3_debug.py        # debug: XYZ rotation-delta planes
+│   ├── tracker_v2.py              # production v2: median + One Euro + ballistics
+│   ├── tracker_v3_debug.py        # debug: XYZ rotation-delta planes
+│   └── tracker_v4.py              # production v4: whole-vector gate + exact arc + HUD
 └── README.md
 ```
 
@@ -88,12 +89,15 @@ Paste the printed offset into `B_OFFSET` in `config.py`.
 ### 2. Track
 
 ```bash
+python -m trackers.tracker_v4          # high-performance v4 (recommended)
+python -m trackers.tracker_v2          # legacy v2 pipeline
 python -m trackers.tracker_v1          # baseline EMA tracker
-python -m trackers.tracker_v2          # production pipeline (recommended)
 python -m trackers.tracker_v3_debug    # debug viewer: XY / YZ / ZX planes
 ```
 
-Press **C** in any plot window to clear the trace and filter state.
+Hotkeys in plot windows:
+- **C**: Clear the trace and reset pipeline filter state.
+- **D** (v4): Toggle dominant-axis orthogonal snapping on/off live.
 
 ## Configuration guide (`config.py`)
 

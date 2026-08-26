@@ -17,11 +17,12 @@ magnetometer-delta/
 │   └── calibrate_offset.py        # sphere-fit hard-iron calibration → prints B_OFFSET for config.py
 ├── core/
 │   ├── filters.py                 # LowPassFilter, OneEuroFilter, ExponentialMovingAverage
-│   └── pipeline.py                # RotationPipeline = signal stages 1-6 + ballistic_gain()
+│   └── pipeline.py                # RotationPipeline, RotationPipelineV4, ballistic_gain()
 ├── trackers/
 │   ├── tracker_v1.py              # baseline: own EMA path, fixed gain + angular deadzone
-│   ├── tracker_v2.py              # production: RotationPipeline + ballistics + spatial deadzone + dominant axis
-│   └── tracker_v3_debug.py        # debug viewer: XYZ accumulators in 3 projection planes
+│   ├── tracker_v2.py              # legacy prod: RotationPipeline + ballistics + spatial deadzone
+│   ├── tracker_v3_debug.py        # debug viewer: XYZ accumulators in 3 projection planes
+│   └── tracker_v4.py              # production v4: RotationPipelineV4 (vector gate + exact arc) + HUD
 ├── docs/                          # detailed docs: architecture, pipeline math, calibration, config ref
 └── requirements.txt / .gitignore / README.md / AGENTS.md
 ```
@@ -32,8 +33,8 @@ magnetometer-delta/
 |------|----------|-------|
 | Change any tunable | `config.py` | Single source of truth; modules never hardcode knobs |
 | Recalibrate offset | `calibration/calibrate_offset.py` | Paste printed value into `B_OFFSET`; not a hand-tuning knob |
-| Modify signal stages 1-6 | `core/pipeline.py::RotationPipeline.feed` | Shared by v2/v3 — v1 bypasses it |
-| Add a tracker variant | `trackers/`, copy v2 pattern | Consume `(d_theta, dt)` from `pipeline.feed()` |
+| Modify signal stages 1-6 | `core/pipeline.py` | `RotationPipeline` (v2/v3) or `RotationPipelineV4` (v4) |
+| Add a tracker variant | `trackers/`, copy v4 pattern | Consume `(d_theta, dt)` from `pipeline.feed()` |
 | Plot/view behavior | `update()` in each tracker | FuncAnimation callback; module-level global state |
 
 ## CODE MAP
@@ -42,9 +43,9 @@ Centrality measured via codegraph (callers). **No automated tests exist anywhere
 
 | Symbol | Type | Location | Callers | Role |
 |--------|------|----------|---------|------|
-| `RotationPipeline.feed` | method | core/pipeline.py | tracker_v2, tracker_v3_debug | Stages 1-6: raw mGauss → `(d_theta, dt)` or None |
-| `RotationPipeline.reset` | method | core/pipeline.py | both trackers ('C' key) | Full state wipe |
-| `ballistic_gain` | func | core/pipeline.py | tracker_v2 ×1, tracker_v3_debug ×1 | S-curve rad/s → plot-units/rad |
+| `RotationPipeline.feed` | method | core/pipeline.py | tracker_v2, tracker_v3_debug | Stages 1-6 (median + small-angle cross) |
+| `RotationPipelineV4.feed` | method | core/pipeline.py | tracker_v4 | Stages 1-6 (vector gate + exact arc-angle) |
+| `ballistic_gain` | func | core/pipeline.py | tracker_v2, v3, v4 | S-curve rad/s → plot-units/rad |
 | `OneEuroFilter` | class | core/filters.py | pipeline ×3 axes | Adaptive smoothing on raw B |
 | `ExponentialMovingAverage` | class | core/filters.py | tracker_v1 only | Plain vector EMA (v1 path) |
 | `collect_data` / `fit_robust_dipole` | funcs | calibration/calibrate_offset.py | `__main__` only | Serial capture / Nelder-Mead sphere fit |
@@ -60,7 +61,7 @@ Centrality measured via codegraph (callers). **No automated tests exist anywhere
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-- NEVER launch files directly (`python trackers/tracker_v2.py`) — ImportError on `config`/`core`.
+- NEVER launch files directly (`python trackers/tracker_v4.py`) — ImportError on `config`/`core`.
 - NEVER hand-edit `B_OFFSET` without re-running calibration — it is sphere-fit output, not a tuning knob.
 - NEVER duplicate signal-chain logic into trackers — extend `core/pipeline.py`.
 - NEVER poke filter internals (`f._x_lpf.hat_x = None`) — use `.reset()`.
@@ -76,7 +77,8 @@ Centrality measured via codegraph (callers). **No automated tests exist anywhere
 ```bash
 pip install -r requirements.txt          # numpy scipy matplotlib pyserial
 python -m calibration.calibrate_offset   # hardware-gated, ~CALIBRATION_SECONDS roll
-python -m trackers.tracker_v2            # production tracker (recommended)
+python -m trackers.tracker_v4            # production tracker v4 (recommended)
+python -m trackers.tracker_v2            # legacy v2 tracker
 python -m trackers.tracker_v1            # baseline EMA tracker
 python -m trackers.tracker_v3_debug      # XYZ debug planes
 ```

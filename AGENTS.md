@@ -22,7 +22,8 @@ magnetometer-delta/
 │   ├── tracker_v1.py              # baseline: own EMA path, fixed gain + angular deadzone
 │   ├── tracker_v2.py              # production: RotationPipeline + ballistics + spatial deadzone + dominant axis
 │   └── tracker_v3_debug.py        # debug viewer: XYZ accumulators in 3 projection planes
-└── requirements.txt / .gitignore / README.md
+├── docs/                          # detailed docs: architecture, pipeline math, calibration, config ref
+└── requirements.txt / .gitignore / README.md / AGENTS.md
 ```
 
 ## WHERE TO LOOK

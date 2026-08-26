@@ -6,6 +6,18 @@ sphere roll against the PCB. The direction of the measured dipole field acts
 like a trackball encoder - rotation deltas are filtered, unwarped, gain-shaped
 and integrated into a live XY trajectory (or XYZ debug views).
 
+## Documentation
+
+Detailed documentation lives in [`docs/`](docs/):
+
+| Doc | Contents |
+|---|---|
+| [Architecture](docs/architecture.md) | System overview, module graph, design decisions, limitations |
+| [Signal pipeline](docs/signal-pipeline.md) | All 9 processing stages: math, rationale, tuning effects |
+| [Calibration guide](docs/calibration-guide.md) | Sphere-fit theory, step-by-step procedure, validation |
+| [Configuration reference](docs/configuration.md) | Every `config.py` knob: default, effect, tuning advice |
+| [Hardware setup](docs/hardware-setup.md) | Firmware serial contract, ports, mounting geometry, environment |
+
 ## Project layout
 
 ```

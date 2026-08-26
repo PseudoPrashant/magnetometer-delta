@@ -1,0 +1,35 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Packaging (if you ever distribute)
+build/
+dist/
+*.egg-info/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Project-specific ---
+# opencode agent session state living inside this folder
+.omo/
+
+# local experiment data (calibration dumps, traces) - keep out of history
+*.csv
+*.npz
+*.log

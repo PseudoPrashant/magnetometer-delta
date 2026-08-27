@@ -31,6 +31,7 @@ from config import (
     OE_D_CUTOFF,
     OE_MIN_CUTOFF,
     RESYNC_GAP,
+    SPIKE_GATE_MULTIPLIER,
     SPIKE_MAX_DELTA_B,
     SPIKE_MEDIAN_TAPS,
     W_REF_HIGH,
@@ -212,6 +213,105 @@ class RotationPipelineV4:
             d_theta = np.zeros(3)
         else:
             # Exact angle on sphere geodesic arc
+            clamped_sin = min(max(sin_theta, -1.0), 1.0)
+            theta = float(np.arcsin(clamped_sin))
+            d_theta = theta * (u_cross / sin_theta)
+
+        self._m_prev = m_unit.copy()
+        return d_theta, dt
+
+
+def ballistic_gain_smooth(omega: float) -> float:
+    """C-infinity sigmoid gain curve — no derivative discontinuities at breakpoints."""
+    import math
+    w_mid = (W_REF_LOW + W_REF_HIGH) / 2.0
+    t = 1.0 / (1.0 + math.exp(-BALLISTICS_GAMMA * (omega - w_mid)))
+    return GAIN_SLOW + (GAIN_FAST - GAIN_SLOW) * t
+
+
+class RotationPipelineV5:
+    """Stages 1-6 (v5): Adaptive gate + 3D-coupled One Euro + exact arc angle.
+
+    Improvements over RotationPipelineV4:
+      1. Adaptive Glitch Gate: threshold self-tunes to recent signal magnitude
+         via EMA of inter-sample deltas, rejecting only true outliers.
+      2. 3D-Coupled One Euro: single speed estimate drives one alpha applied
+         to all 3 components synchronously, eliminating residual axis skew.
+      3. Exact Arc-Angle Delta: inherited from V4 — true geodesic distance
+         via arcsin(cross-product magnitude).
+    """
+
+    def __init__(self) -> None:
+        self._speed_lpf = OneEuroFilter(OE_D_CUTOFF, 0.0, OE_D_CUTOFF)
+        self._b_raw_prev: np.ndarray | None = None
+        self._b_filtered: np.ndarray | None = None
+        self._b_filtered_prev: np.ndarray | None = None
+        self._last_t: float | None = None
+        self._m_prev: np.ndarray | None = None
+        self._delta_ema: float = SPIKE_MAX_DELTA_B
+        self._warmup_done: bool = False
+
+    def reset(self) -> None:
+        self._speed_lpf.reset()
+        self._b_raw_prev = None
+        self._b_filtered = None
+        self._b_filtered_prev = None
+        self._last_t = None
+        self._m_prev = None
+        self._delta_ema = SPIKE_MAX_DELTA_B
+        self._warmup_done = False
+
+    def feed(self, b_raw_mg: np.ndarray) -> tuple[np.ndarray, float] | None:
+        if self._b_raw_prev is not None:
+            delta_mag = float(np.linalg.norm(b_raw_mg - self._b_raw_prev))
+            threshold = max(SPIKE_MAX_DELTA_B, self._delta_ema * SPIKE_GATE_MULTIPLIER)
+            if delta_mag > threshold:
+                return None
+            self._delta_ema = 0.95 * self._delta_ema + 0.05 * delta_mag
+        self._b_raw_prev = b_raw_mg.copy()
+
+        now = time.perf_counter()
+        if self._b_filtered is None or self._last_t is None:
+            self._b_filtered = b_raw_mg.copy()
+            self._b_filtered_prev = self._b_filtered.copy()
+            self._last_t = now
+            self._m_prev = None
+            return None
+
+        raw_dt = now - self._last_t
+        self._last_t = now
+        resync = raw_dt > RESYNC_GAP
+        dt = min(max(raw_dt, DT_MIN), DT_MAX)
+
+        if self._b_filtered_prev is not None:
+            speed_3d = float(np.linalg.norm(b_raw_mg - self._b_filtered_prev) / dt)
+        else:
+            speed_3d = 0.0
+        self._b_filtered_prev = self._b_filtered.copy()
+
+        hat_speed = self._speed_lpf.filter(speed_3d, dt)
+        cutoff = OE_MIN_CUTOFF + OE_BETA * hat_speed
+        x_alpha = OneEuroFilter._alpha(cutoff, dt)
+
+        self._b_filtered = x_alpha * b_raw_mg + (1.0 - x_alpha) * self._b_filtered
+
+        m = INV_A @ (self._b_filtered - B_OFFSET)
+
+        norm = float(np.linalg.norm(m))
+        if norm < NORM_EPS:
+            return None
+        m_unit = m / norm
+
+        if self._m_prev is None or resync:
+            self._m_prev = m_unit.copy()
+            self._warmup_done = True
+            return None
+
+        u_cross = np.cross(self._m_prev, m_unit)
+        sin_theta = float(np.linalg.norm(u_cross))
+        if sin_theta < 1e-9:
+            d_theta = np.zeros(3)
+        else:
             clamped_sin = min(max(sin_theta, -1.0), 1.0)
             theta = float(np.arcsin(clamped_sin))
             d_theta = theta * (u_cross / sin_theta)

@@ -22,7 +22,7 @@ LSB_TO_MGAUSS: Final[float] = 1.5  # IIS2MDC sensitivity (mGauss per LSB)
 
 # Calibrated hard-iron + ambient baseline (mGauss).
 # Output of calibration/calibrate_offset.py - re-run it to refresh this value.
-B_OFFSET: Final = np.array([7.06, 483.78, 20.01])
+B_OFFSET: Final = np.array([148.47, 662.57, 102.31])
 
 # Inverse geometry unwarping matrix for sensor offset (0, 10, 5) mm.
 INV_A: Final = np.array([

@@ -24,36 +24,39 @@ Detailed documentation lives in [`docs/`](docs/):
 magnetometer-delta/
 ├── config.py                      # every tunable in one place
 ├── calibration/
-│   └── calibrate_offset.py        # hard-iron offset calibration (sphere fit)
+│   ├── calibrate_offset.py        # hard-iron offset calibration (sphere fit)
+│   └── collect_calibration_data.py# 4-phase guided dataset collector
 ├── core/
 │   ├── filters.py                 # LowPassFilter, OneEuroFilter, EMA
-│   └── pipeline.py                # RotationPipeline, RotationPipelineV4, ballistic_gain
+│   └── pipeline.py                # RotationPipeline, V4, V4_1, V5, StrokeGestureRecognizer
 ├── trackers/
 │   ├── tracker_v1.py              # baseline: EMA + fixed gain + deadzone
 │   ├── tracker_v2.py              # production v2: median + One Euro + ballistics
-│   ├── tracker_v3_debug.py        # debug: XYZ rotation-delta planes
-│   └── tracker_v4.py              # production v4: whole-vector gate + exact arc + HUD
+│   ├── tracker_v3.py              # debug: XYZ rotation-delta planes
+│   ├── tracker_v4_1.py            # v4.1: coupled One Euro + leaky damping
+│   ├── tracker_v5.py              # v5: dual-branch rotation & swipe viewer
+│   └── tracker_v5_1.py            # production v5.1: stroke recognizer + 3D leaky integration
 └── README.md
 ```
 
 ## Signal chain
 
-Stages 1-6 live in `core/pipeline.py` (`RotationPipeline.feed()`), shared by
-v2/v3. Each tracker adds its own stage-7+ shaping:
+Stages 1-6 live in `core/pipeline.py` (`RotationPipeline.feed()`, `RotationPipelineV5.feed()`).
+Each tracker adds its own stage-7+ shaping:
 
 ```
 [IIS2MDC Hardware @ 100 Hz / 400 kHz I2C]
     |
     v
-1. Spike Rejection       (3-tap per-axis median on raw stream)
-2. Adaptive Smoothing    (One Euro filter on raw B)
+1. Spike Rejection       (adaptive glitch gate / median)
+2. Adaptive Smoothing    (3D-coupled One Euro filter on raw B)
 3. Baseline Correction   (B_clean = B - B_OFFSET)
 4. Geometry Unwarping    (m = INV_A @ B_clean)
 5. Normalization         (m_hat = m / ||m||)
-6. Rotation Delta        (dTheta = m_prev x m_hat, timestamped)
-7. Velocity Ballistics   (gain grows with angular speed)
-8. Spatial Deadzone      (fractional accumulation - no lost motion)   [v2 only]
-9. Dominant Axis         (keep larger of |dX|,|dY| per frame)          [v2 only]
+6. Rotation Delta        (dTheta exact arc angle, burst-timing rectified)
+7. Velocity Ballistics   (smooth C-infinity sigmoid curve)
+8. Leaky Integration     (leaky damping + noise floor gating)         [v4_1, v5_1]
+9. Stroke Recognition    (stateful displacement accumulator)          [v5_1 only]
 ```
 
 ## Install
@@ -89,15 +92,15 @@ Paste the printed offset into `B_OFFSET` in `config.py`.
 ### 2. Track
 
 ```bash
-python -m trackers.tracker_v4          # high-performance v4 (recommended)
+python -m trackers.tracker_v5_1        # production v5.1 (stroke gesture recognizer + 3D, recommended)
+python -m trackers.tracker_v5          # v5 dual-branch tracker
+python -m trackers.tracker_v4_1        # v4.1 leaky 3D viewer
 python -m trackers.tracker_v2          # legacy v2 pipeline
 python -m trackers.tracker_v1          # baseline EMA tracker
-python -m trackers.tracker_v3_debug    # debug viewer: XY / YZ / ZX planes
 ```
 
 Hotkeys in plot windows:
-- **C**: Clear the trace and reset pipeline filter state.
-- **D** (v4): Toggle dominant-axis orthogonal snapping on/off live.
+- **C**: Clear the trace and reset pipeline filter and gesture state.
 
 ## Configuration guide (`config.py`)
 

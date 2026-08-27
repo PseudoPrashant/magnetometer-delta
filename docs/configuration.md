@@ -57,9 +57,24 @@ completeness. All values below are the current defaults.
 | `RESYNC_GAP` | `0.5` s | pipeline | Serial stall longer than this drops the pending delta and reseeds direction instead of emitting a huge jump |
 | `MAX_HISTORY` | `2000` points | v1/v2 | Trace memory cap; prevents unbounded growth and late-frame slowdowns |
 | `VIEW_LIMIT` | `500` units | v1/v2 | Initial half-width of the view; autoscaling grows beyond it ×1.2 as needed |
-| `TRAIL_LEN` | `600` frames | v3 | Per-plane trail length (deque-bounded) |
-| `LIMIT_FLOOR` | `10.0` units | v3 | Closest auto-zoom allowed; keeps planes from zooming into noise |
+| `TRAIL_LEN` | `600` frames | v3/v4/v5 | Per-plane trail length (deque-bounded) |
+| `LIMIT_FLOOR` | `10.0` units | v3/v4/v5 | Closest auto-zoom allowed; keeps planes from zooming into noise |
 | `CALIBRATION_SECONDS` | `120` s | calibration | Capture duration. Longer = better sphere coverage if your patience allows |
+
+## v4_1 & v5_1 Pipeline & Gesture Knobs
+
+| Constant | Default | Used by | Effect |
+|---|---|---|---|
+| `SPIKE_GATE_MULTIPLIER` | `3.0` | v4_1 / v5 | Adaptive glitch gate: rejects delta > N × running average delta |
+| `DTHETA_NOISE_FLOOR` | `0.0001` rad | v4_1 / v5_1 | Below this rotation delta magnitude is treated as stationary sensor noise |
+| `LEAK_ALPHA` | `0.9999` | v4_1 / v5_1 | Leaky integrator retention per frame to eliminate stationary drift |
+| `OE_V4_1_D_CUTOFF` | `3.0` Hz | v4_1 / v5 | Speed estimator cutoff frequency for fast ramp-up during rapid flicks |
+| `SWIPE_MIN_DISPLACEMENT` | `0.08` rad | v5_1 | Minimum net stroke displacement (~4.5° roll) required to trigger a swipe event |
+| `SWIPE_MIN_OMEGA_PEAK` | `1.0` rad/s | v5_1 | Minimum peak angular speed during stroke to reject slow micro-movements |
+| `SWIPE_SILENCE_TAPS` | `4` frames | v5_1 | Consecutive quiet frames (~40 ms) required to mark stroke completion |
+| `SWIPE_COOLDOWN_SEC` | `0.18` s | v5_1 | Lockout period after a swipe to suppress return strokes and finger releases |
+| `SWIPE_TILT_OFFSET_DEG` | `-15.0` deg | v5_1 | Biomechanical tilt compensation for natural finger curl during horizontal swipes |
+| `SWIPE_FLASH_DURATION` | `0.60` s | v5_1 | Duration the HUD banner stays illuminated on a recognized gesture |
 
 ## Module-local physics constants (not daily knobs)
 

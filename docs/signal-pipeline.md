@@ -201,13 +201,27 @@ diagonal wobble. Set `DOMINANT_AXIS = False` for continuous diagonal motion.
 v3 deliberately omits stages 8–9: all three channels integrate every frame so
 the Z component stays visible in its projection planes.
 
+## Stage 10 — Stateful Stroke Gesture Recognition (v5_1)
+
+```python
+Delta_Theta_stroke = sum(d_theta)  # across active continuous samples
+phi = atan2(Delta_Theta_x, Delta_Theta_y) - SWIPE_TILT_OFFSET_DEG
+```
+
+Instead of evaluating instantaneous 10 ms vectors (which are corrupted by deceleration
+tails, return strokes, and finger releases), v5_1 groups motion into physical strokes:
+- **Active Triggering**: requires displacement $\ge \text{SWIPE\_MIN\_DISPLACEMENT}$ ($0.08\text{ rad}$)
+  and peak speed $\ge \text{SWIPE\_MIN\_OMEGA\_PEAK}$ ($1.0\text{ rad/s}$).
+- **Tilt Compensation**: $-15^\circ$ trim compensates for human wrist curl during horizontal swipes.
+- **Cooldown Lockout**: $0.18\text{ s}$ cooldown suppresses return strokes and finger resets.
+
 ---
 
-## Timing notes
+## Timing & Burst-Drain Rectification (v5)
 
-- Timestamps come from `time.perf_counter()` captured right after the median
-  tap is appended — consistent sampling-order semantics regardless of serial
-  buffering.
-- `feed()` returns `None` during warm-up, after degenerate samples, and on
-  resync frames. Trackers must treat `None` as "nothing happened", never as
-  an error.
+When the host GUI loop drains multiple queued serial lines (`while ser.in_waiting:`),
+consecutive samples arrive with sub-millisecond delays (`raw_dt < 5 ms`).
+- **The Problem**: Clamping to `DT_MIN = 0.0005 s` artificially multiplies $\omega = \|\vec{d\theta}\| / dt$ by 20x.
+- **The Fix**: `RotationPipelineV5` normalizes sub-5 ms burst intervals to the physical sensor sampling period (`DT_SEED = 0.01 s`), preventing false velocity spikes.
+- Timestamps come from `time.perf_counter()` with resync guards on serial stalls (`> RESYNC_GAP = 0.5 s`).
+- `feed()` returns `None` during warm-up, after degenerate samples, and on resync frames. Trackers must treat `None` as "nothing happened", never as an error.

@@ -31,8 +31,11 @@ config.py  <────────────── every module imports its 
    ├── core/pipeline.py ──► core/filters.py (OneEuroFilter ×3)
    │        ▲
    │        ├── trackers/tracker_v2.py
-   │        ├── trackers/tracker_v3_debug.py
-   │        └── trackers/tracker_v4.py
+   │        ├── trackers/tracker_v3.py
+   │        ├── trackers/tracker_v4_0.py
+   │        ├── trackers/tracker_v4_1.py
+   │        ├── trackers/tracker_v5.py
+   │        └── trackers/tracker_v5_1.py (Stroke Recognizer + 3D Coupled)
    │
    └── core/filters.py ◄─── trackers/tracker_v1.py (ExponentialMovingAverage)
 ```
@@ -57,24 +60,24 @@ Everything is single-threaded:
 4. Per-sample work: parse → scale → `pipeline.feed()` → gain/deadzone shaping
    → accumulate → update plot artists.
 
-State lives in module-level globals inside each tracker (positions, trails,
-residues) plus the encapsulated state inside `RotationPipeline` / `RotationPipelineV4`.
-The `C` key calls `reset_state()`, which wipes both via `pipeline.reset()`.
+State lives in class-encapsulated state machines (e.g. `TrackerState` in v4_1/v5_1)
+plus the encapsulated state inside `RotationPipeline` / `RotationPipelineV4` / `RotationPipelineV5`.
+The `C` key calls `state.reset()`, which wipes both via `pipeline.reset()`.
 
 ## Tracker variants
 
-| | v1 | v2 (legacy prod) | v3_debug | v4 (high-performance) |
-|---|---|---|---|---|
-| Spike filtering | none | 3-tap median | 3-tap median | whole-vector delta gate |
-| Filtering | plain EMA (α=0.7) | One Euro | One Euro | synchronous One Euro |
-| Pipeline | own inline path | `RotationPipeline` | `RotationPipeline` | `RotationPipelineV4` |
-| Kinematics | cross (small-angle) | cross (small-angle) | cross (small-angle) | exact arc-angle ($\arcsin$) |
-| Gain | fixed 1500 | ballistic S-curve | ballistic S-curve | ballistic S-curve |
-| Deadzone | angular (0.0035 rad), dropped | spatial (5 units), banked | none | spatial (5 units), banked |
-| Dominant axis | no | yes (static) | no | yes (hotkey toggle 'D') |
-| Diagnostics HUD | no | no | console heartbeat | real-time on-canvas HUD |
-| Channels | X, Y | X, Y | X, Y, Z in 3 planes | X, Y |
-| Purpose | historical baseline | stable v2 baseline | inspecting rotation space | production high-speed tracker |
+| | v1 | v2 (legacy prod) | v3_debug | v4 / v4_1 | v5_1 (stroke gesture + 3D) |
+|---|---|---|---|---|---|
+| Spike filtering | none | 3-tap median | 3-tap median | adaptive delta gate | adaptive delta gate |
+| Filtering | plain EMA (α=0.7) | One Euro | One Euro | synchronous / 3D One Euro | 3D-coupled One Euro |
+| Pipeline | own inline path | `RotationPipeline` | `RotationPipeline` | `RotationPipelineV4` / `V4_1` | `RotationPipelineV5` (burst-rectified) |
+| Kinematics | cross (small-angle) | cross (small-angle) | cross (small-angle) | exact arc-angle ($\arcsin$) | exact arc-angle ($\arcsin$) |
+| Gain | fixed 1500 | ballistic S-curve | ballistic S-curve | ballistic / smooth sigmoid | smooth $C^\infty$ sigmoid |
+| Deadzone & Drift | angular (0.0035 rad), dropped | spatial (5 units), banked | none | leaky integration (v4_1) | leaky integration + noise floor |
+| Gesture Recognition | none | none | none | none | stateful stroke accumulator |
+| Diagnostics HUD | no | no | console heartbeat | real-time on-canvas HUD | real-time HUD with stroke flash |
+| Channels | X, Y | X, Y | X, Y, Z in 3 planes | X, Y, Z in 3 planes | X, Y, Z in 3 planes |
+| Purpose | historical baseline | stable v2 baseline | inspecting rotation space | production high-speed | production gesture & 3D tracker |
 
 v1 exists as a reference point: if v2 ever misbehaves you can diff behavior
 against it. Do not extend v1 — new signal logic goes into `core/`.

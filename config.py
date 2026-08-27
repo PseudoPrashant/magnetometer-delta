@@ -78,9 +78,9 @@ TRAIL_LEN: Final[int] = 600       # v3 frames of history shown per plane
 LIMIT_FLOOR: Final[float] = 10.0  # v3 closest auto-zoom allowed (plot-units)
 
 # ==========================================
-# V5 PIPELINE TUNING
+# v4_1 PIPELINE TUNING
 # ==========================================
 SPIKE_GATE_MULTIPLIER: Final[float] = 3.0   # adaptive gate: reject > N x recent avg delta
-DTHETA_NOISE_FLOOR: Final[float] = 0.0005   # rad - below this d_theta is sensor noise
-LEAK_ALPHA: Final[float] = 0.999            # leaky integrator retention per frame
-MAX_SAMPLES_PER_FRAME: Final[int] = 5       # serial drain cap per animation tick
+DTHETA_NOISE_FLOOR: Final[float] = 0.0001  # rad - below this d_theta is sensor noise
+LEAK_ALPHA: Final[float] = 0.9999          # leaky integrator retention per frame
+OE_V4_1_D_CUTOFF: Final[float] = 3.0        # Hz - v4_1 speed estimator cutoff (faster ramp-up)

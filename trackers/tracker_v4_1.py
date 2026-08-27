@@ -1,11 +1,11 @@
-"""tracker_v4_1.py - Improved 3-Plane Rotation Viewer (v5 pipeline).
+"""tracker_v4_1.py - Improved 3-Plane Rotation Viewer (v4_1 pipeline).
 
 Improvements over tracker_v4:
     1. Leaky integrator — eliminates stationary drift.
     2. Per-frame sample cap — prevents frame-time spikes.
-    3. 3D-coupled One Euro — zero residual axis skew (in V5 pipeline).
+    3. 3D-coupled One Euro — zero residual axis skew (in v4_1 pipeline).
     4. Warm-up telemetry — HUD shows pipeline state during startup.
-    5. Adaptive glitch gate — self-tuning threshold (in V5 pipeline).
+    5. Adaptive glitch gate — self-tuning threshold (in v4_1 pipeline).
     6. CSV session logging — timestamped raw data for offline replay.
     7. O(1) deque trails — capped at TRAIL_LEN.
     8. Smooth sigmoid gain — C-infinity gain curve, no derivative jumps.
@@ -32,18 +32,17 @@ from config import (
     LEAK_ALPHA,
     LIMIT_FLOOR,
     LSB_TO_MGAUSS,
-    MAX_SAMPLES_PER_FRAME,
     SERIAL_PORT,
     TRAIL_LEN,
 )
-from core.pipeline import RotationPipelineV5, ballistic_gain_smooth
+from core.pipeline import RotationPipelineV4_1, ballistic_gain_smooth
 
 LIMIT0 = 50.0
 
 
 class TrackerState:
     def __init__(self) -> None:
-        self.pipeline = RotationPipelineV5()
+        self.pipeline = RotationPipelineV4_1()
         self.acc = np.zeros(3)
         self.trails: dict[str, deque[tuple[float, float]]] = {
             k: deque(maxlen=TRAIL_LEN) for k in ('xy', 'yz', 'zx')
@@ -123,7 +122,7 @@ except serial.SerialException as e:
 state = TrackerState()
 
 fig, (ax_xy, ax_yz, ax_zx) = plt.subplots(1, 3, figsize=(16, 5.5))
-fig.suptitle("Rotation-Delta Space (v5: Adaptive Gate + Coupled Filter + Smooth Gain)",
+fig.suptitle("Rotation-Delta Space (v4_1: Adaptive Gate + Coupled Filter + Smooth Gain)",
              fontsize=13, fontweight='bold')
 
 planes: list[tuple[plt.Axes, plt.Line2D, plt.Line2D, deque]] = []
@@ -173,8 +172,7 @@ def refresh_plane(ax: plt.Axes, line: plt.Line2D, dot: plt.Line2D,
 
 
 def update(frame: int):
-    count = 0
-    while ser.in_waiting and count < MAX_SAMPLES_PER_FRAME:
+    while ser.in_waiting:
         line = ser.readline().decode('utf-8', errors='ignore').strip()
         if not line:
             continue
@@ -191,7 +189,6 @@ def update(frame: int):
             continue
 
         state.feed_sample(b_raw)
-        count += 1
 
     for ax, line, dot, trail_key in planes:
         refresh_plane(ax, line, dot, state.trails[trail_key])

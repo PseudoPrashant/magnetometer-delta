@@ -30,6 +30,7 @@ from config import (
     OE_BETA,
     OE_D_CUTOFF,
     OE_MIN_CUTOFF,
+    OE_V4_1_D_CUTOFF,
     RESYNC_GAP,
     SPIKE_GATE_MULTIPLIER,
     SPIKE_MAX_DELTA_B,
@@ -229,8 +230,8 @@ def ballistic_gain_smooth(omega: float) -> float:
     return GAIN_SLOW + (GAIN_FAST - GAIN_SLOW) * t
 
 
-class RotationPipelineV5:
-    """Stages 1-6 (v5): Adaptive gate + 3D-coupled One Euro + exact arc angle.
+class RotationPipelineV4_1:
+    """Stages 1-6 (v4_1): Adaptive gate + 3D-coupled One Euro + exact arc angle.
 
     Improvements over RotationPipelineV4:
       1. Adaptive Glitch Gate: threshold self-tunes to recent signal magnitude
@@ -242,7 +243,7 @@ class RotationPipelineV5:
     """
 
     def __init__(self) -> None:
-        self._speed_lpf = OneEuroFilter(OE_D_CUTOFF, 0.0, OE_D_CUTOFF)
+        self._speed_lpf = OneEuroFilter(OE_V4_1_D_CUTOFF, 0.0, OE_V4_1_D_CUTOFF)
         self._b_raw_prev: np.ndarray | None = None
         self._b_filtered: np.ndarray | None = None
         self._b_filtered_prev: np.ndarray | None = None

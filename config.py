@@ -95,3 +95,36 @@ SWIPE_COOLDOWN_SEC: Final[float] = 0.18       # s - cooldown after swipe to igno
 SWIPE_TILT_OFFSET_DEG: Final[float] = -15.0   # deg - hand biomechanical tilt compensation
 SWIPE_FLASH_DURATION: Final[float] = 0.60     # s - HUD flash duration for recognized gesture
 
+# ==========================================
+# v6 ACCUMULATED ROTATION-AXIS SIGNATURES
+# ==========================================
+V6_DIRECTIONS: Final[list[str]] = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+# Calibrated unit rotation-axis templates in unwarped dipole space (m).
+# Generated via calibration/interactive_calibration.py with robust outlier pruning.
+V6_TEMPLATES: Final[dict[str, np.ndarray]] = {
+    "UP": np.array([0.970, -0.041, 0.239]),
+    "DOWN": np.array([-0.994, 0.011, 0.106]),
+    "LEFT": np.array([-0.026, -0.994, -0.108]),
+    "RIGHT": np.array([-0.216, 0.967, 0.137]),
+}
+
+V6_USE_UNWARPED: Final[bool] = True          # True: unwarped dipole space m; False: B_clean mGauss
+
+# --- Stream Denoising & Glitch Rejection ---
+V6_ENABLE_DENOISING: Final[bool] = True      # Enable 3D-coupled adaptive stream denoiser
+V6_DENOISE_MIN_CUTOFF: Final[float] = 1.0    # Hz - baseline filter cutoff at rest (>10x jitter reduction)
+V6_DENOISE_BETA: Final[float] = 0.003        # speed sensitivity slope for adaptive cutoff
+V6_DENOISE_D_CUTOFF: Final[float] = 0.8      # Hz - derivative filter cutoff
+V6_MAX_SPIKE_DELTA: Final[float] = 4000.0    # mGauss - maximum physical step per sample (rejects EMI spikes)
+
+# --- Motion Window & Gating ---
+V6_NOISE_FLOOR: Final[float] = 0.003         # minimum ||dB|| per sample to accumulate cross product
+V6_SWIPE_START_THRESH: Final[float] = 0.015  # deviation from baseline to trigger swipe window
+V6_SILENCE_TAPS: Final[int] = 5              # consecutive quiet frames (~50ms) to finalize swipe
+V6_MIN_SAMPLES: Final[int] = 8               # minimum accumulated samples for a valid swipe (>=80ms)
+V6_MAX_SAMPLES: Final[int] = 80              # maximum samples in single swipe window
+V6_CONFIDENCE_THRESHOLD: Final[float] = 0.70 # minimum dot product (cos theta) for classification
+V6_AXIS_MIN_MAGNITUDE: Final[float] = 1e-4   # minimum ||axis_accum|| to avoid degenerate normalize
+V6_FLASH_DURATION: Final[float] = 0.60       # s - HUD visual banner duration
+

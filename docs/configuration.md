@@ -76,6 +76,27 @@ completeness. All values below are the current defaults.
 | `SWIPE_TILT_OFFSET_DEG` | `-15.0` deg | v5_1 | Biomechanical tilt compensation for natural finger curl during horizontal swipes |
 | `SWIPE_FLASH_DURATION` | `0.60` s | v5_1 | Duration the HUD banner stays illuminated on a recognized gesture |
 
+## v6 Accumulated Rotation-Axis Signatures
+
+| Constant | Default | Used by | Effect |
+|---|---|---|---|
+| `V6_DIRECTIONS` | `['UP', 'DOWN', 'LEFT', 'RIGHT']` | v6 | List of target swipe cardinal directions |
+| `V6_TEMPLATES` | 4 unit vectors (see config) | v6 | Calibrated 3D reference rotation-axis unit vectors |
+| `V6_USE_UNWARPED` | `True` | v6 | Transform via `INV_A @ (B - B_OFFSET)` (dipole space) vs raw `B - B_OFFSET` |
+| `V6_ENABLE_DENOISING` | `True` | v6 | Enable synchronous 3D-coupled adaptive stream denoiser |
+| `V6_DENOISE_MIN_CUTOFF` | `1.0` Hz | v6 | Baseline filter cutoff at rest (>10x sensor jitter reduction) |
+| `V6_DENOISE_BETA` | `0.003` | v6 | Dynamic cutoff expansion slope during rapid swipes |
+| `V6_DENOISE_D_CUTOFF` | `0.8` Hz | v6 | Derivative speed filter cutoff |
+| `V6_MAX_SPIKE_DELTA` | `4000.0` mG | v6 | Glitch gate: maximum physical step per sample (rejects EMI spikes) |
+| `V6_NOISE_FLOOR` | `0.003` | v6 | Minimum step norm required to accumulate $B_{prev} \times \Delta B$ |
+| `V6_SWIPE_START_THRESH` | `0.015` | v6 | Deviation from sliding baseline to trigger active swipe state |
+| `V6_SILENCE_TAPS` | `5` frames | v6 | Consecutive stillness frames to mark end of swipe |
+| `V6_MIN_SAMPLES` | `8` | v6 | Minimum motion samples required for a valid swipe (>=80ms) |
+| `V6_MAX_SAMPLES` | `80` | v6 | Maximum duration cap per swipe before evaluation |
+| `V6_CONFIDENCE_THRESHOLD`| `0.70` | v6 | Minimum cosine similarity (dot product) required for direction match |
+| `V6_AXIS_MIN_MAGNITUDE` | `1e-4` | v6 | Minimum $\|\vec{A}_{accum}\|$ to prevent degenerate normalization |
+| `V6_FLASH_DURATION` | `0.60` s | v6 | Duration HUD highlight banner stays active on gesture match |
+
 ## Module-local physics constants (not daily knobs)
 
 These live next to the math they stabilize and rarely need touching:

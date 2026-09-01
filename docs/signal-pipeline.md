@@ -215,6 +215,37 @@ tails, return strokes, and finger releases), v5_1 groups motion into physical st
 - **Tilt Compensation**: $-15^\circ$ trim compensates for human wrist curl during horizontal swipes.
 - **Cooldown Lockout**: $0.18\text{ s}$ cooldown suppresses return strokes and finger resets.
 
+## Stage 11 — Accumulated Rotation-Axis Signatures (v6)
+
+```python
+# 1. Multi-Stage Stream Denoising & Glitch Gate:
+B_clean = denoiser.filter(B_raw, dt=0.01)
+
+# 2. Per active sample during swipe:
+dB = B_clean - B_prev
+if ||dB|| > V6_NOISE_FLOOR:
+    axis_accum += cross(B_prev, dB)
+B_prev = B_clean
+
+# 3. On swipe completion:
+axis_unit = axis_accum / ||axis_accum||
+for direction, template in V6_TEMPLATES.items():
+    score[direction] = dot(axis_unit, template)
+winner = argmax(score)
+```
+
+Instead of computing scalar rotation angles ($\theta$) and integrating continuous trajectory coordinates,
+Tracker v6 directly captures the **vector rotation axis** about which the magnetic field vector turns:
+- **Kinematic Concept**: When a cylindrical/spherical dipole rotates in 3D space, the apparent rotation
+  axis observed by the sensor forms a characteristic directional ray in 3D space.
+- **Multi-Stage Stream Denoising (`VectorStreamDenoiseFilter`)**:
+  1. *Spike Gate*: Suppresses single-sample EMI spikes ($> 4000\text{ mGauss}$).
+  2. *3D-Coupled One Euro Filter*: Synchronous adaptive low-pass filter providing **>10x noise attenuation** at rest while opening cutoff dynamically during rapid swipes to preserve zero-latency response.
+  3. *Debouncing & Sample Windowing*: Requires baseline displacement $\ge \text{V6\_SWIPE\_START\_THRESH}$ ($0.015$) and physical duration $\ge 8\text{ samples}$ ($80\text{ ms}$), completely eliminating 3ms micro-tremor false triggers.
+- **Cosine Similarity Template Matching**: Live normalized rotation axes are scored directly via dot
+  product against calibrated 3D unit templates (`V6_TEMPLATES`).
+- **Compact Model**: 4 direction unit vectors = 12 stored floats total.
+
 ---
 
 ## Timing & Burst-Drain Rectification (v5)

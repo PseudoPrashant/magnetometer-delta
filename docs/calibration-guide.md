@@ -83,6 +83,41 @@ runs means bad capture data, not a code bug.
 - After any remounting that changes the sensor-to-pivot geometry (that also
   means rederiving `INV_A`/`A_FORWARD` — see [hardware setup](hardware-setup.md)).
 
+---
+
+## Part 2 — Rotation-Axis Signature Calibration (Tracker v6)
+
+While `calibrate_offset.py` finds the static ambient field baseline (`B_OFFSET`), Tracker v6 requires calibrating the **directional rotation-axis templates** (`V6_TEMPLATES`).
+
+### Interactive Guided Workflow (`interactive_calibration.py`)
+
+Run from the project root:
+
+```bash
+python -m calibration.interactive_calibration
+```
+
+#### Phase 1: Guided Directional Capture
+1. The tool continuously streams serial data at 100 Hz in a background thread.
+2. It prompts you direction-by-direction (e.g. `UP`, `DOWN`, `LEFT`, `RIGHT`).
+3. For each swipe, it detects stillness, arms the trigger, records the burst, and displays the exact duration, sample count, and axis vector.
+4. You can immediately **Accept (Enter)**, **Retry (R)**, or **Skip (S)** each swipe.
+
+#### Phase 2: Pattern & Variation Analysis
+The engine evaluates intra-cluster consistency and inter-direction separation:
+- **Intra-Cluster Angular Spread**: Computes standard deviation of deviation angles from the centroid ($\sigma_\theta$). Target: $< 15^\circ$.
+- **Consistency Score**: Mean cosine similarity within the cluster. Target: $> 95\%$.
+- **Outlier Pruning**: Automatically rejects noisy return strokes or accidental bumps ($> 35^\circ$ deviation).
+- **Pairwise Separation Matrix**: Computes angles and cosine similarities between all target directions. Target: Opposites $\approx 180^\circ$ (sim $\approx -1.0$), Orthogonals $\approx 90^\circ$ (sim $\approx 0.0$).
+
+#### Phase 3: Seamless Live Prediction Validation
+1. Instantly loads the calibrated templates into the live recognizer without closing the serial port.
+2. As you perform test swipes, it displays live predicted directions, confidence percentages, and top score bars.
+3. Prompts you to confirm accuracy to measure real-world performance live.
+4. Automatically offers to update `config.py::V6_TEMPLATES` and exports a full timestamped session CSV log.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -90,4 +125,5 @@ runs means bad capture data, not a code bug.
 | Program ends silently after serial error line | Port wrong/busy | Check `SERIAL_PORT`; close other serial monitors |
 | No output after collection | Fewer than 200 valid samples captured | Verify ~100 Hz stream (serial monitor shows 3 numbers/line); check wiring/firmware |
 | Radius differs wildly between runs | Incomplete orientation coverage during roll | Re-roll, deliberately covering all axes |
+| High angular dispersion (>25°) during v6 calibration | Fast hand reset / return strokes captured | Use interactive mode (`interactive_calibration`) and press `R` to retry noisy swipes |
 | Tracker still drifts after calibration | Offset pasted into wrong place, or environment changed since capture | Re-check paste; recalibrate in final position |

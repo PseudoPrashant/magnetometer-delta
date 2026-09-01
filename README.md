@@ -24,10 +24,16 @@ Detailed documentation lives in [`docs/`](docs/):
 magnetometer-delta/
 ├── config.py                      # every tunable in one place
 ├── calibration/
+│   ├── analyze_recorded_streams.py# deep kinematic stream analyzer (variance, speed, replay)
 │   ├── calibrate_offset.py        # hard-iron offset calibration (sphere fit)
-│   └── collect_calibration_data.py# 4-phase guided dataset collector
+│   ├── collect_calibration_data.py# 4-phase guided dataset collector
+│   ├── interactive_calibration.py # guided swipe capture, variation analyzer, live prediction
+│   ├── record_directional_stream.py# continuous directional stream recorder (2x 20s trials)
+│   └── train_axis_signatures.py   # v6 rotation-axis signature trainer (live + CSV modes)
 ├── core/
-│   ├── filters.py                 # LowPassFilter, OneEuroFilter, EMA
+│   ├── axis_signature.py          # Accumulated Rotation-Axis Signature engine (v6)
+│   ├── filters.py                 # LowPassFilter, OneEuroFilter, VectorStreamDenoiseFilter, EMA
+│   ├── kinematic_swipe.py         # Stream Kinematic Energy & Rotation-Plane Swipe Engine (v7)
 │   └── pipeline.py                # RotationPipeline, V4, V4_1, V5, StrokeGestureRecognizer
 ├── trackers/
 │   ├── tracker_v1.py              # baseline: EMA + fixed gain + deadzone
@@ -35,20 +41,23 @@ magnetometer-delta/
 │   ├── tracker_v3.py              # debug: XYZ rotation-delta planes
 │   ├── tracker_v4_1.py            # v4.1: coupled One Euro + leaky damping
 │   ├── tracker_v5.py              # v5: dual-branch rotation & swipe viewer
-│   └── tracker_v5_1.py            # production v5.1: stroke recognizer + 3D leaky integration
+│   ├── tracker_v5_1.py            # production v5.1: stroke recognizer + 3D leaky integration
+│   ├── tracker_v6.py              # production v6: accumulated rotation-axis swipe recognizer
+│   └── tracker_v7.py              # production v7: stream kinematic energy & rotation-plane engine
+├── tests/
+│   └── test_axis_signature.py     # unit & dataset replay test suite
 └── README.md
 ```
 
 ## Signal chain
 
-Stages 1-6 live in `core/pipeline.py` (`RotationPipeline.feed()`, `RotationPipelineV5.feed()`).
-Each tracker adds its own stage-7+ shaping:
+Stages 1-6 live in `core/pipeline.py`, `core/axis_signature.py`, or `core/kinematic_swipe.py` (`StreamKinematicSwipeDetector.feed_raw()`):
 
 ```
 [IIS2MDC Hardware @ 100 Hz / 400 kHz I2C]
     |
     v
-1. Spike Rejection       (adaptive glitch gate / median)
+1. Spike Rejection       (adaptive glitch gate / median / noise floor)
 2. Adaptive Smoothing    (3D-coupled One Euro filter on raw B)
 3. Baseline Correction   (B_clean = B - B_OFFSET)
 4. Geometry Unwarping    (m = INV_A @ B_clean)
@@ -56,7 +65,9 @@ Each tracker adds its own stage-7+ shaping:
 6. Rotation Delta        (dTheta exact arc angle, burst-timing rectified)
 7. Velocity Ballistics   (smooth C-infinity sigmoid curve)
 8. Leaky Integration     (leaky damping + noise floor gating)         [v4_1, v5_1]
-9. Stroke Recognition    (stateful displacement accumulator)          [v5_1 only]
+9. Stroke Recognition    (stateful displacement accumulator)          [v5_1]
+10. Axis Signatures      (accumulated rotation-axis dot-product match)[v6]
+11. Kinematic Swiping    (energy-gated velocity-weighted momentum)    [v7]
 ```
 
 ## Install
@@ -64,7 +75,7 @@ Each tracker adds its own stage-7+ shaping:
 Python >= 3.10, then:
 
 ```bash
-pip install numpy scipy matplotlib pyserial
+pip install numpy scipy matplotlib pyserial pandas
 ```
 
 Set your port (`SERIAL_PORT`) in `config.py`.
@@ -78,7 +89,7 @@ cd magnetometer-delta
 
 ## Usage
 
-### 1. Calibrate (once per physical setup)
+### 1. Calibrate & Record Data
 
 Tape the PCB face-down, keep metal/watches away, roll continuously for
 `CALIBRATION_SECONDS` while it collects:
@@ -89,10 +100,32 @@ python -m calibration.calibrate_offset
 
 Paste the printed offset into `B_OFFSET` in `config.py`.
 
+To record high-rate continuous directional streaming data (5s Still + 15s Swipe, 2 trials per direction):
+
+```bash
+python -m calibration.record_directional_stream                               # prompts for direction and records 2x trials
+```
+
+To run deep kinematic analysis on all recorded stream datasets:
+
+```bash
+python -m calibration.analyze_recorded_streams                                # offline stream analyzer & classifier benchmark
+```
+
+To train/update rotation-axis signature templates for Tracker v6 with interactive guided capture, pattern variation analysis, and live prediction testing:
+
+```bash
+python -m calibration.interactive_calibration                                # interactive guided capture & validator (recommended)
+python -m calibration.train_axis_signatures                                  # live guided serial trainer
+python -m calibration.train_axis_signatures --from-csv calibration_data_*.csv # offline replay mode
+```
+
 ### 2. Track
 
 ```bash
-python -m trackers.tracker_v5_1        # production v5.1 (stroke gesture recognizer + 3D, recommended)
+python -m trackers.tracker_v7          # production v7 (stream kinematic energy & rotation-plane engine, recommended)
+python -m trackers.tracker_v6          # production v6 (accumulated rotation-axis signatures, zero-filtering)
+python -m trackers.tracker_v5_1        # production v5.1 (stroke gesture recognizer + 3D)
 python -m trackers.tracker_v5          # v5 dual-branch tracker
 python -m trackers.tracker_v4_1        # v4.1 leaky 3D viewer
 python -m trackers.tracker_v2          # legacy v2 pipeline
@@ -101,6 +134,8 @@ python -m trackers.tracker_v1          # baseline EMA tracker
 
 Hotkeys in plot windows:
 - **C**: Clear the trace and reset pipeline filter and gesture state.
+- **T**: Print current rotation-axis template vectors (v6/v7).
+- **Q**: Quit window.
 
 ## Configuration guide (`config.py`)
 
